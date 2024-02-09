@@ -4,13 +4,13 @@ import 'dotenv/config';
 import { xslxData, IRow } from './src/excel';
 import promptSync from 'prompt-sync';
 import { savePerson } from './src/person';
-import { savePCData } from './src/pc';
+import { Documents, savePCData, setDocType } from './src/pc';
 const prompt = promptSync();
 
 async function start() {
   const options = new Chrome.Options();
   let driver = await new Builder()
-    .setChromeOptions(options.debuggerAddress('localhost:53329'))
+    .setChromeOptions(options.debuggerAddress('localhost:54703'))
     .forBrowser(Browser.CHROME)
     .build();
   try {
@@ -21,7 +21,14 @@ async function start() {
 
     //await login(driver, process.env.login, process.env.pass);
     //await findPerson(driver);
-    await saveData(driver);
+    //await saveData(driver);
+    //await findAndSaveData(driver);
+
+    //await addDocument(driver);
+    //await addFile(driver);
+    //await setDocType(driver, 'понов', 0);
+    let docs = new Documents(driver, 'C:\\chrome\\docs');
+    await docs.process();
 
     //console.log(inputs);
     //await driver.wait(until.titleIs('webdriver - Google Search'), 1000);
@@ -106,6 +113,36 @@ async function saveData(driver: WebDriver) {
     if (resPC.trim() == 'y') {
       await savePCData(driver, row);
       console.log('Complete pc');
+    }
+  }
+}
+
+async function findAndSaveData(driver: WebDriver) {
+  let rows: IRow[] = (await xslxData('2022.xlsx')).rows as IRow[];
+  var pc_num = '';
+  while (true) {
+    pc_num = prompt(`Input pc_num `);
+    if (pc_num.trim() == 'n') {
+      break;
+    }
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].pc_num == pc_num.trim()) {
+        let row: IRow = rows[i] as IRow;
+        let resPerson: string = prompt(
+          `Внести особисті дані особи ${row.first_name} ${row.last_name} - ${row.id_code} `
+        );
+        if (resPerson.trim() == 'y') {
+          await savePerson(driver, row);
+          console.log('Complete person');
+        }
+        let resPC: string = prompt(
+          `Внести дані картки особи ${row.first_name} ${row.last_name} - ${row.pc_num} `
+        );
+        if (resPC.trim() == 'y') {
+          await savePCData(driver, row);
+          console.log('Complete pc');
+        }
+      }
     }
   }
 }
