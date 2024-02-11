@@ -1,4 +1,4 @@
-import { By, WebDriver } from 'selenium-webdriver';
+import { By, WebDriver, until } from 'selenium-webdriver';
 import { IRow } from './excel';
 import { formatDate } from './utilities';
 
@@ -124,18 +124,43 @@ async function saveDocumentData(driver: WebDriver, data: IRow) {
       15000
     ); */
     await driver.manage().setTimeouts({ implicit: 10000 });
-    let options = await driver.findElements(
-      By.css('div.el-popover div.ub-select__option')
+    let dropdowns = await driver.findElements(
+      By.css("div.el-popover[aria-hidden='false']")
     );
-    console.log(await options.length);
+    console.log('Drop', dropdowns.length);
 
-    if (options.length > 2) {
-      if (data.paper_id_doc) {
-        await options[0].click();
+    if (dropdowns && dropdowns.length > 0) {
+      let last_dropdown = dropdowns[dropdowns.length - 1];
+      let options = await last_dropdown.findElements(
+        By.css('div.ub-select__option')
+      );
+      console.log(options.length);
+      if (options.length > 2) {
+        if (data.paper_id_doc) {
+          await options[0].click();
+        }
+        if (data.plastic_id_doc) {
+          await options[1].click();
+        }
       }
-      if (data.plastic_id_doc) {
-        await options[1].click();
-      }
+    }
+  }
+}
+
+async function savePersonCard(driver: WebDriver) {
+  let panels = await driver.findElements(
+    By.css('.x-panel-body .x-tabpanel-child')
+  );
+  if (panels.length > 0) {
+    let last_panel = panels[panels.length - 1];
+    let buttons = await last_panel.findElements(
+      By.css('.u-form-layout .u-toolbar button')
+    );
+    console.log('tool ', buttons.length);
+
+    if (buttons.length > 3) {
+      //await driver.manage().setTimeouts({ implicit: 10000 });
+      await buttons[1].click();
     }
   }
 }
@@ -151,4 +176,5 @@ export async function savePerson(driver: WebDriver, data: IRow) {
   await saveAddressData(driver, data);
   await saveContactData(driver, data);
   await saveDocumentData(driver, data);
+  await savePersonCard(driver);
 }

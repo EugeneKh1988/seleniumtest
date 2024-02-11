@@ -10,7 +10,7 @@ const prompt = promptSync();
 async function start() {
   const options = new Chrome.Options();
   let driver = await new Builder()
-    .setChromeOptions(options.debuggerAddress('localhost:54703'))
+    .setChromeOptions(options.debuggerAddress('localhost:50224'))
     .forBrowser(Browser.CHROME)
     .build();
   try {
@@ -24,9 +24,6 @@ async function start() {
     //await saveData(driver);
     //await findAndSaveData(driver);
 
-    //await addDocument(driver);
-    //await addFile(driver);
-    //await setDocType(driver, 'понов', 0);
     let docs = new Documents(driver, 'C:\\chrome\\docs');
     await docs.process();
 
@@ -45,10 +42,13 @@ async function goTo(driver: WebDriver, url: string) {
 // login
 async function login(driver: WebDriver, name: string, pass: string) {
   // wait until loaded
-  await driver.wait(
+  /* await driver.wait(
     until.elementIsVisible(
       driver.findElement(By.css('.auth-page__container input'))
     )
+  ); */
+  await driver.wait(
+    until.elementLocated(By.css('.auth-page__container input'))
   );
   let inputs = await driver.findElements(By.css('.auth-page__container input')); //.sendKeys('login');
   for (let input of inputs) {
