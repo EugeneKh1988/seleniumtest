@@ -88,32 +88,46 @@ async function savePCScan(driver: WebDriver, pc_path: string) {
     );
 
     if (buttons.length > 2) {
-      await buttons[3].click();
+      //await buttons[3].click();
+      await driver.actions().click(buttons[3]).perform();
       // wait untill dialog loaded
       await driver.wait(
         until.elementLocated(
           By.css("div.el-dialog[aria-label='Прикріплення файлу']")
         )
       );
-      let file = await driver.findElement(
+      let file_inp = await driver.findElement(
         By.css('.el-dialog .u-file-container .u-file__dropzone input')
       );
       // add
-      await file.sendKeys(pc_path);
+      await setTimeout(1000);
+      await file_inp.sendKeys(pc_path);
+      console.log(pc_path);
+      //await driver.actions().sendKeys()
+
       // wait for loading
       await driver.wait(
         until.elementLocated(
           By.css('.el-dialog .u-file-container .u-file-container__view iframe')
         )
       );
+      await setTimeout(6000);
       let add_but = await driver.findElement(
         By.css('.el-dialog .el-dialog__footer button')
       );
       await add_but.click();
-
+      // save pc
+      await saveCard(driver);
+      // wait for load mask disappear
+      await driver.wait(
+        until.elementIsNotVisible(
+          await driver.findElement(By.css('.el-loading-mask'))
+        )
+      );
+      await setTimeout(1000);
       // go to doc tab
       let doc_tab = await last_panel.findElement(
-        By.css('.el-tabs__nav #tab-3')
+        By.css('.el-tabs__nav #tab-4')
       );
       await doc_tab.click();
     }
@@ -121,6 +135,19 @@ async function savePCScan(driver: WebDriver, pc_path: string) {
 }
 
 export async function createDocument(driver: WebDriver) {
+  //<div class="el-loading-mask el-loading-fade-leave el-loading-fade-leave-active" style="">...</div>
+  // wait for view doc list
+  await driver.wait(
+    until.elementIsVisible(
+      await driver.findElement(By.css('.el-tabs__nav #tab-3'))
+    )
+  );
+  // wait for load mask disappear
+  await driver.wait(
+    until.elementIsNotVisible(
+      await driver.findElement(By.css('.el-loading-mask'))
+    )
+  );
   let buttons = await driver.findElements(
     By.css('.u-form-layout .u-toolbar button')
   );
@@ -141,12 +168,24 @@ export async function createDocument(driver: WebDriver) {
   //console.log(buttons_modal.length);
 }
 
-export async function saveAndClose(driver: WebDriver) {
-  await driver.wait(
-    until.elementLocated(
-      By.css('#pane-4 .u-file-container .u-file-container__view iframe')
-    )
-  );
+export async function saveAndClose(
+  driver: WebDriver,
+  isImage: boolean = false
+) {
+  if (isImage) {
+    await driver.wait(
+      until.elementLocated(
+        By.css('#pane-4 .u-file-container .u-file-container__view img')
+      )
+    );
+  } else {
+    await driver.wait(
+      until.elementLocated(
+        By.css('#pane-4 .u-file-container .u-file-container__view iframe')
+      )
+    );
+  }
+
   await setTimeout(2000);
   let panels = await driver.findElements(By.css('.x-tabpanel-child'));
   if (panels.length > 0) {
@@ -157,7 +196,7 @@ export async function saveAndClose(driver: WebDriver) {
     console.log('tool ', buttons.length);
 
     if (buttons.length > 3) {
-      await driver.manage().setTimeouts({ implicit: 10000 });
+      await driver.manage().setTimeouts({ implicit: 20000 });
       await buttons[2].click();
     }
   }
@@ -179,12 +218,10 @@ export async function setDocType(
   let file_type = await driver.findElements(
     By.css('#pane-4 .u-form-row__content .el-input input')
   );
-  console.log(file_type.length);
+  //console.log(file_type.length);
 
   if (file_type.length > 4) {
     await file_type[4].clear();
-    //await file_type[4].click();
-    //await file_type[4].sendKeys('понов');
     await driver
       .actions()
       .click(file_type[4])
@@ -193,7 +230,7 @@ export async function setDocType(
       .perform();
 
     //await driver.manage().setTimeouts({ implicit: 10000 });
-    await driver.wait(
+    /* await driver.wait(
       until.elementLocated(By.css('.el-popover div.ub-select__option'))
     );
     let doc_opts = await driver.findElements(
@@ -202,19 +239,31 @@ export async function setDocType(
     if (doc_opts.length > position) {
       await doc_opts[position].click();
     }
-    console.log(doc_opts.length);
+    console.log(doc_opts.length); */
+    await driver.wait(
+      until.elementLocated(By.css("div.el-popover[aria-hidden='false']"))
+    );
+    let dropdowns = await driver.findElements(
+      By.css("div.el-popover[aria-hidden='false']")
+    );
+    if (dropdowns && dropdowns.length > 0) {
+      let last_dropdown = dropdowns[dropdowns.length - 1];
+      let options = await last_dropdown.findElements(
+        By.css('div.ub-select__option')
+      );
+      console.log(options.length);
+      if (options.length > position) {
+        await options[position].click();
+      }
+    }
   }
-
-  /* await driver.manage().setTimeouts({ implicit: 10000 });
-  let options = await driver.findElements(By.css('div.el-popover'));
-  console.log(await options.length); */
 }
 
 const keyword_to_names = {
-  pc: ['ПК.pdf', 'картка'],
+  pc: ['ПК.pdf', 'картка', 'reportCard'],
   понов: ['статус', 'Status', 'СБ'],
   'виплати доп': ['ДБ', 'виплата', 'DB'],
-  план: ['план', 'Plan'],
+  план: ['план', 'Plan', 'іпп.rtf'],
   'додаток 1': [
     'додаток1',
     'додаток 1',
@@ -239,6 +288,8 @@ const keyword_to_names = {
   громадс: ['громад'],
   непраце: ['непрацезд'],
   лікарсь: ['лікарсь'],
+  реєстрації: ['відмов'],
+  пенс: ['пенсію'],
 };
 
 const keyword_to_position = {
@@ -263,6 +314,8 @@ const keyword_to_position = {
   громадс: 0,
   непраце: 0,
   лікарсь: 0,
+  реєстрації: 0,
+  пенс: 0,
 };
 class Document {
   path: string = '';
@@ -277,6 +330,18 @@ class Document {
 
   file_path() {
     return `${this.path}\\${this.file_name}`;
+  }
+
+  isImage() {
+    let image_mask = ['.png', '.jpg', '.jpeg', '.bmp'];
+    let image: boolean = false;
+    for (let i = 0; i < image_mask.length; i++) {
+      if (this.file_name.toLocaleLowerCase().endsWith(image_mask[i])) {
+        image = true;
+        break;
+      }
+    }
+    return image;
   }
 
   get_keyword() {
@@ -364,91 +429,7 @@ export class Documents {
           keyword_to_position[doc.doc_keyword]
         );
         // save and close doc
-        await saveAndClose(this.driver);
-      }
-      // for save pc scan
-      if (doc && doc.doc_keyword == 'pc') {
-        //await savePCScan(this.driver, doc.file_path());
-      }
-    }
-    //keywords.forEach((keyword) => {});
-
-    for (let i = 0; i < this.docs.length; i++) {
-      if (this.docs[i].doc_keyword == '') {
-        let resDoc: string = prompt(
-          `Для документа ${this.docs[i].file_name} визначте індекс ключового слова `
-        );
-        let keyword_index = parseInt(resDoc.trim());
-        if (keyword_index && keyword_index != 0) {
-          let new_doc_keyword = '';
-          if (keywords.length >= keyword_index + 1) {
-            new_doc_keyword = keywords[keyword_index];
-            console.log(
-              `Новий ключ для документа ${this.docs[i].file_name} ${new_doc_keyword}`
-            );
-            // create new doc
-            await createDocument(this.driver);
-            await addFile(this.driver, this.docs[i].file_path());
-            await setDocType(
-              this.driver,
-              new_doc_keyword,
-              keyword_to_position[new_doc_keyword]
-            );
-          }
-        }
-        if (keyword_index === 0) {
-          // for save pc scan
-          //await savePCScan(this.driver, this.docs[i].file_path());
-        }
-      }
-    }
-  }
-
-  async process() {
-    let keywords = Object.keys(keyword_to_names);
-    for (let i = 0; i < keywords.length; i++) {
-      let keyword = keywords[i];
-      let doc = this.find(keyword);
-      if (doc && doc.doc_keyword != 'pc') {
-        let resDoc: string = prompt(
-          `Внести документ ${doc.file_name}  як ${doc.doc_keyword} `
-        );
-        if (resDoc.trim() == 'y') {
-          // create new doc
-          await createDocument(this.driver);
-          // attach file
-          await addFile(this.driver, doc.file_path());
-          // set doc type
-          await setDocType(
-            this.driver,
-            doc.doc_keyword,
-            keyword_to_position[doc.doc_keyword]
-          );
-          // save and close doc
-          await saveAndClose(this.driver);
-        }
-        let keyword_index = parseInt(resDoc.trim());
-        if (keyword_index && keyword_index != 0) {
-          let new_doc_keyword = '';
-          if (keywords.length >= keyword_index + 1) {
-            new_doc_keyword = keywords[keyword_index];
-            console.log(
-              `Новий ключ для документа ${doc.file_name} ${new_doc_keyword}`
-            );
-            // create new doc
-            await createDocument(this.driver);
-            await addFile(this.driver, doc.file_path());
-            await setDocType(
-              this.driver,
-              new_doc_keyword,
-              keyword_to_position[new_doc_keyword]
-            );
-          }
-        }
-        if (keyword_index === 0) {
-          // for save pc scan
-          await savePCScan(this.driver, doc.file_path());
-        }
+        await saveAndClose(this.driver, doc.isImage());
       }
       // for save pc scan
       if (doc && doc.doc_keyword == 'pc') {
@@ -478,10 +459,100 @@ export class Documents {
               new_doc_keyword,
               keyword_to_position[new_doc_keyword]
             );
+            // save and close doc
+            await saveAndClose(this.driver, this.docs[i].isImage());
           }
         }
         if (keyword_index === 0) {
+          // for save pc scan
           await savePCScan(this.driver, this.docs[i].file_path());
+        }
+      }
+    }
+  }
+
+  async process() {
+    let keywords = Object.keys(keyword_to_names);
+    for (let i = 0; i < keywords.length; i++) {
+      let keyword = keywords[i];
+      let doc = this.find(keyword);
+      if (doc && doc.doc_keyword != 'pc') {
+        let resDoc: string = prompt(
+          `Внести документ ${doc.file_name}  як ${doc.doc_keyword} `
+        );
+        if (resDoc.trim() == 'y') {
+          // create new doc
+          await createDocument(this.driver);
+          // attach file
+          await addFile(this.driver, doc.file_path());
+          // set doc type
+          await setDocType(
+            this.driver,
+            doc.doc_keyword,
+            keyword_to_position[doc.doc_keyword]
+          );
+          // save and close doc
+          await saveAndClose(this.driver, doc.isImage());
+        }
+        let keyword_index = parseInt(resDoc.trim());
+        if (keyword_index && keyword_index != 0) {
+          let new_doc_keyword = '';
+          if (keywords.length >= keyword_index + 1) {
+            new_doc_keyword = keywords[keyword_index];
+            console.log(
+              `Новий ключ для документа ${doc.file_name} ${new_doc_keyword}`
+            );
+            // create new doc
+            await createDocument(this.driver);
+            await addFile(this.driver, doc.file_path());
+            await setDocType(
+              this.driver,
+              new_doc_keyword,
+              keyword_to_position[new_doc_keyword]
+            );
+            // save and close doc
+            await saveAndClose(this.driver, doc.isImage());
+          }
+        }
+        if (keyword_index === 0) {
+          // for save pc scan
+          await savePCScan(this.driver, doc.file_path());
+        }
+      }
+      // for save pc scan
+      if (doc && doc.doc_keyword == 'pc') {
+        //await savePCScan(this.driver, doc.file_path());
+      }
+    }
+    //keywords.forEach((keyword) => {});
+
+    for (let i = 0; i < this.docs.length; i++) {
+      if (this.docs[i].doc_keyword == '') {
+        let resDoc: string = prompt(
+          `Для документа ${this.docs[i].file_name} визначте індекс ключового слова `
+        );
+        let keyword_index = parseInt(resDoc.trim());
+        if (keyword_index && keyword_index != 0) {
+          let new_doc_keyword = '';
+          if (keywords.length >= keyword_index + 1) {
+            new_doc_keyword = keywords[keyword_index];
+            console.log(
+              `Новий ключ для документа ${this.docs[i].file_name} ${new_doc_keyword}`
+            );
+            // create new doc
+            await createDocument(this.driver);
+            await addFile(this.driver, this.docs[i].file_path());
+            await setDocType(
+              this.driver,
+              new_doc_keyword,
+              keyword_to_position[new_doc_keyword]
+            );
+            // save and close doc
+            await saveAndClose(this.driver, this.docs[i].isImage());
+          }
+        }
+        if (keyword_index === 0) {
+          //await savePCScan(this.driver, this.docs[i].file_path());
         }
       }
     }

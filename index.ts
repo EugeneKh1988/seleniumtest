@@ -10,7 +10,7 @@ const prompt = promptSync();
 async function start() {
   const options = new Chrome.Options();
   let driver = await new Builder()
-    .setChromeOptions(options.debuggerAddress('localhost:50224'))
+    .setChromeOptions(options.debuggerAddress('localhost:55616'))
     .forBrowser(Browser.CHROME)
     .build();
   try {
@@ -22,10 +22,10 @@ async function start() {
     //await login(driver, process.env.login, process.env.pass);
     //await findPerson(driver);
     //await saveData(driver);
-    //await findAndSaveData(driver);
+    await findAndSaveData(driver);
 
     let docs = new Documents(driver, 'C:\\chrome\\docs');
-    await docs.process();
+    await docs.auto_process();
 
     //console.log(inputs);
     //await driver.wait(until.titleIs('webdriver - Google Search'), 1000);
