@@ -3,14 +3,22 @@ import Chrome from 'selenium-webdriver/chrome';
 import 'dotenv/config';
 import { xslxData, IRow } from './src/excel';
 import promptSync from 'prompt-sync';
-import { savePerson } from './src/person';
+import { goToLinks, savePerson } from './src/person';
 import { Documents, savePCData, setDocType } from './src/pc';
+import {
+  closePanels,
+  createPersonCard,
+  findPersonByCode,
+  goToPersonList,
+  openPCCard,
+  openPersonCard,
+} from './src/navigation';
 const prompt = promptSync();
 
 async function start() {
   const options = new Chrome.Options();
   let driver = await new Builder()
-    .setChromeOptions(options.debuggerAddress('localhost:55616'))
+    .setChromeOptions(options.debuggerAddress('localhost:52766'))
     .forBrowser(Browser.CHROME)
     .build();
   try {
@@ -22,16 +30,144 @@ async function start() {
     //await login(driver, process.env.login, process.env.pass);
     //await findPerson(driver);
     //await saveData(driver);
-    await findAndSaveData(driver);
 
-    let docs = new Documents(driver, 'C:\\chrome\\docs');
-    await docs.auto_process();
+    //await findAndSaveData(driver);
 
-    //console.log(inputs);
-    //await driver.wait(until.titleIs('webdriver - Google Search'), 1000);
+    //let docs = new Documents(driver, 'C:\\chrome\\docs');
+    //await docs.auto_process();
+
+    await personCard(driver, { navigate: true });
+    await addDocuments(driver, {
+      path: 'C:\\chrome\\docs',
+      onePerson: true,
+      navigate: false,
+    });
+
+    //await goToPersonList(driver);
+    //await findPersonByCode(driver, '3621001899');
+    //await openPersonCard(driver);
+    //await openPCCard(driver, '210822010400003');
   } finally {
     //await driver.quit();
   }
+}
+
+async function personCard(
+  driver: WebDriver,
+  { navigate }: { navigate: boolean }
+) {
+  if (navigate) {
+    let rows: IRow[] = (await xslxData('2022.xlsx')).rows as IRow[];
+    var pc_num = '';
+    while (true) {
+      pc_num = prompt(`Input pc_num `);
+      if (pc_num.trim() == 'n') {
+        break;
+      }
+      // close panels except first
+      await closePanels(driver);
+      //
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i].pc_num == pc_num.trim()) {
+          let row: IRow = rows[i] as IRow;
+          // find person
+          await findPersonByCode(driver, row.id_code.trim());
+          // attemp to open if exists
+          if (await openPersonCard(driver)) {
+            console.log('Картка особи існує');
+          } else {
+            console.log(
+              `Внесення особистих даних особи ${row.first_name} ${row.last_name} - ${row.id_code} `
+            );
+            // create empty
+            await createPersonCard(driver);
+            // set data
+            await savePerson(driver, row);
+          }
+          //
+          await goToLinks(driver);
+          if (await openPCCard(driver, pc_num)) {
+            console.log('ПК існує');
+          } else {
+            console.log(
+              `Внесення дани картки особи ${row.first_name} ${row.last_name} - ${row.pc_num} `
+            );
+            await savePCData(driver, row);
+          }
+        }
+      }
+    }
+  } else {
+    await findAndSaveData(driver);
+  }
+}
+
+async function addDocuments(
+  driver: WebDriver,
+  {
+    path,
+    onePerson,
+    navigate,
+  }: { path: string; onePerson: boolean; navigate: boolean }
+) {
+  // for one person without navigation
+  // pc card must be open
+  if (onePerson && !navigate) {
+    let docs = new Documents(driver, path);
+    await docs.auto_process();
+  }
+  // for one person with navigation
+  // person list must be open with selected id column
+  if (onePerson && navigate) {
+    documentsForOnePerson(driver, path);
+  }
+
+  // for many person with navigation
+  // person list must be open with selected id column
+  if (!onePerson && navigate) {
+    let cont = '';
+    while (true) {
+      documentsForOnePerson(driver, path);
+      cont = prompt(`Continue? `);
+      if (cont.trim() != 'y') {
+        break;
+      }
+    }
+  }
+}
+
+async function documentsForOnePerson(driver: WebDriver, path: string) {
+  // rows from xlx
+  let rows: IRow[] = (await xslxData('2022.xlsx')).rows as IRow[];
+  let docs = new Documents(driver, path);
+  // get pc_num
+  let pc_num = '';
+  if (docs.get_num_pc()) {
+    pc_num = docs.get_num_pc().toString();
+  } else {
+    pc_num = prompt(`Input pc_num `);
+  }
+  // get id_code
+  let id_code = '';
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].pc_num == pc_num.trim()) {
+      let row: IRow = rows[i] as IRow;
+      id_code = row.id_code;
+      break;
+    }
+  }
+  if (!id_code) {
+    id_code = prompt(`Input id code: `);
+  }
+  //
+  // find person card
+  await findPersonByCode(driver, id_code.trim());
+  // open
+  await openPersonCard(driver);
+  // open person pc with some number
+  await openPCCard(driver, pc_num.trim());
+  // add documents from path
+  await docs.auto_process();
 }
 
 // go to some url
@@ -148,5 +284,3 @@ async function findAndSaveData(driver: WebDriver) {
 }
 
 start();
-
-export const one = 1;

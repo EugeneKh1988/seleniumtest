@@ -116,15 +116,22 @@ async function savePCScan(driver: WebDriver, pc_path: string) {
         By.css('.el-dialog .el-dialog__footer button')
       );
       await add_but.click();
-      // save pc
-      await saveCard(driver);
       // wait for load mask disappear
       await driver.wait(
         until.elementIsNotVisible(
-          await driver.findElement(By.css('.el-loading-mask'))
+          await driver.findElement(By.css('.el-loading-spinner'))
         )
       );
-      await setTimeout(1000);
+      // save pc
+      await saveCard(driver);
+      await setTimeout(10000);
+      // wait for load mask disappear
+      await driver.wait(
+        until.elementIsNotVisible(
+          await driver.findElement(By.css('.el-loading-spinner'))
+        )
+      );
+      await driver.manage().setTimeouts({ implicit: 20000 });
       // go to doc tab
       let doc_tab = await last_panel.findElement(
         By.css('.el-tabs__nav #tab-4')
@@ -186,7 +193,7 @@ export async function saveAndClose(
     );
   }
 
-  await setTimeout(2000);
+  await setTimeout(5000);
   let panels = await driver.findElements(By.css('.x-tabpanel-child'));
   if (panels.length > 0) {
     let last_panel = panels[panels.length - 1];
@@ -280,7 +287,7 @@ const keyword_to_names = {
   висновок: ['акт'],
   ато: ['участь ато'],
   військово: ['військовий'],
-  договір: ['договір'],
+  договір: ['договір', 'ProfLearn'],
   направленн: ['направлення на навчання'],
   бойов: ['убд'],
   медико: ['мсек'],
@@ -290,6 +297,7 @@ const keyword_to_names = {
   лікарсь: ['лікарсь'],
   реєстрації: ['відмов'],
   пенс: ['пенсію'],
+  соц: ['соціальн'],
 };
 
 const keyword_to_position = {
@@ -306,7 +314,7 @@ const keyword_to_position = {
   висновок: 0,
   ато: 0, //11
   військово: 0,
-  договір: 0,
+  договір: 1,
   направленн: 0,
   бойов: 0,
   медико: 0, //16
@@ -316,16 +324,19 @@ const keyword_to_position = {
   лікарсь: 0,
   реєстрації: 0,
   пенс: 0,
+  соц: 0,
 };
 class Document {
   path: string = '';
   file_name: string;
   doc_keyword = '';
+  num_pc: number = 0;
 
   constructor(path: string, file_name: string) {
     this.path = path;
     this.file_name = file_name;
     this.get_keyword();
+    this.get_num_pc();
   }
 
   file_path() {
@@ -342,6 +353,10 @@ class Document {
       }
     }
     return image;
+  }
+
+  get_num_pc() {
+    this.num_pc = parseInt(this.file_name);
   }
 
   get_keyword() {
@@ -407,6 +422,18 @@ export class Documents {
       }
     });
     //this.docs.forEach(doc => {console.log(doc.doc_keyword)});
+  }
+
+  // get num pc from file names
+  get_num_pc() {
+    let num_pc = 0;
+    for (let i = 0; i < this.docs.length; i++) {
+      let doc = this.docs[i];
+      if (!isNaN(doc.num_pc) && doc.num_pc > 0) {
+        num_pc = doc.num_pc;
+      }
+    }
+    return num_pc;
   }
 
   async auto_process() {
