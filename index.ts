@@ -5,6 +5,7 @@ import { xslxData, IRow } from './src/excel';
 import promptSync from 'prompt-sync';
 import { goToLinks, savePerson } from './src/person';
 import { Documents, savePCData, setDocType } from './src/pc';
+import { readdirSync } from 'fs';
 import {
   closePanels,
   createPersonCard,
@@ -18,7 +19,7 @@ const prompt = promptSync();
 async function start() {
   const options = new Chrome.Options();
   let driver = await new Builder()
-    .setChromeOptions(options.debuggerAddress('localhost:52766'))
+    .setChromeOptions(options.debuggerAddress('localhost:50364'))
     .forBrowser(Browser.CHROME)
     .build();
   try {
@@ -36,11 +37,11 @@ async function start() {
     //let docs = new Documents(driver, 'C:\\chrome\\docs');
     //await docs.auto_process();
 
-    await personCard(driver, { navigate: true });
+    //await personCard(driver, { navigate: true, create: false });
     await addDocuments(driver, {
       path: 'C:\\chrome\\docs',
-      onePerson: true,
-      navigate: false,
+      onePerson: false,
+      navigate: true,
     });
 
     //await goToPersonList(driver);
@@ -54,7 +55,7 @@ async function start() {
 
 async function personCard(
   driver: WebDriver,
-  { navigate }: { navigate: boolean }
+  { navigate, create }: { navigate: boolean; create: boolean }
 ) {
   if (navigate) {
     let rows: IRow[] = (await xslxData('2022.xlsx')).rows as IRow[];
@@ -67,38 +68,53 @@ async function personCard(
       // close panels except first
       await closePanels(driver);
       //
-      for (let i = 0; i < rows.length; i++) {
-        if (rows[i].pc_num == pc_num.trim()) {
-          let row: IRow = rows[i] as IRow;
-          // find person
-          await findPersonByCode(driver, row.id_code.trim());
-          // attemp to open if exists
-          if (await openPersonCard(driver)) {
-            console.log('Картка особи існує');
-          } else {
-            console.log(
-              `Внесення особистих даних особи ${row.first_name} ${row.last_name} - ${row.id_code} `
-            );
-            // create empty
-            await createPersonCard(driver);
-            // set data
-            await savePerson(driver, row);
-          }
-          //
-          await goToLinks(driver);
-          if (await openPCCard(driver, pc_num)) {
-            console.log('ПК існує');
-          } else {
-            console.log(
-              `Внесення дани картки особи ${row.first_name} ${row.last_name} - ${row.pc_num} `
-            );
-            await savePCData(driver, row);
-          }
-        }
-      }
+      await saveOrOpenPersonCard(driver, rows, pc_num, create);
     }
   } else {
     await findAndSaveData(driver);
+  }
+}
+
+async function saveOrOpenPersonCard(
+  driver: WebDriver,
+  rows: IRow[],
+  pc_num: string,
+  create: boolean
+) {
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].pc_num == pc_num.trim()) {
+      let row: IRow = rows[i] as IRow;
+      // find person
+      await findPersonByCode(driver, row.id_code.trim());
+      // attemp to open if exists
+      if (await openPersonCard(driver)) {
+        console.log('Картка особи існує');
+      } else {
+        if (create) {
+          console.log(
+            `Внесення особистих даних особи ${row.first_name} ${row.last_name} - ${row.id_code} `
+          );
+          // create empty
+          await createPersonCard(driver);
+          // set data
+          await savePerson(driver, row);
+        } else {
+          return false;
+        }
+      }
+      //
+      await goToLinks(driver);
+      if (await openPCCard(driver, pc_num)) {
+        console.log('ПК існує');
+      } else {
+        if (create) {
+          console.log(
+            `Внесення даних картки особи ${row.first_name} ${row.last_name} - ${row.pc_num} `
+          );
+          await savePCData(driver, row);
+        }
+      }
+    }
   }
 }
 
@@ -119,20 +135,38 @@ async function addDocuments(
   // for one person with navigation
   // person list must be open with selected id column
   if (onePerson && navigate) {
-    documentsForOnePerson(driver, path);
+    await documentsForOnePerson(driver, path);
   }
 
   // for many person with navigation
   // person list must be open with selected id column
   if (!onePerson && navigate) {
-    let cont = '';
+    let dirs = [];
+    try {
+      dirs = readdirSync(path);
+      console.log(dirs);
+    } catch (error) {
+      console.error(error);
+    }
+    for (let i = 0; i < dirs.length; i++) {
+      // close panels except first
+      await closePanels(driver);
+
+      let dir = dirs[i];
+      await documentsForOnePerson(driver, `${path}\\${dir}`);
+      let cont = prompt(`Продовжувати? `);
+      if (cont.trim() != 'y') {
+        break;
+      }
+    }
+    /* let cont = '';
     while (true) {
       documentsForOnePerson(driver, path);
       cont = prompt(`Continue? `);
       if (cont.trim() != 'y') {
         break;
       }
-    }
+    } */
   }
 }
 
@@ -153,19 +187,22 @@ async function documentsForOnePerson(driver: WebDriver, path: string) {
     if (rows[i].pc_num == pc_num.trim()) {
       let row: IRow = rows[i] as IRow;
       id_code = row.id_code;
+      //
+      await saveOrOpenPersonCard(driver, rows, pc_num, true);
       break;
     }
   }
+  // if id not found
   if (!id_code) {
     id_code = prompt(`Input id code: `);
+    //
+    // find person card
+    await findPersonByCode(driver, id_code.trim());
+    // open
+    await openPersonCard(driver);
+    // open person pc with some number
+    await openPCCard(driver, pc_num.trim());
   }
-  //
-  // find person card
-  await findPersonByCode(driver, id_code.trim());
-  // open
-  await openPersonCard(driver);
-  // open person pc with some number
-  await openPCCard(driver, pc_num.trim());
   // add documents from path
   await docs.auto_process();
 }
