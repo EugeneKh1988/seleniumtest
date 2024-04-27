@@ -1,7 +1,7 @@
 import { By, Key, WebDriver, until } from 'selenium-webdriver';
 import { IRow } from './excel';
 import { formatDate, saveCard } from './utilities';
-import { readdirSync } from 'fs';
+import { readdirSync, unlinkSync } from 'fs';
 import promptSync from 'prompt-sync';
 const prompt = promptSync();
 import { setTimeout } from 'timers/promises';
@@ -36,6 +36,12 @@ async function createPC(driver: WebDriver) {
 async function inputPCData(driver: WebDriver, data: IRow) {
   // wait
   await driver.wait(until.elementLocated(By.css('.el-tabs__nav #tab-2')));
+  // wait
+  await driver.wait(
+    until.elementIsVisible(
+      await driver.findElement(By.css('.el-tabs__nav #tab-2'))
+    )
+  );
   // common
   let common = await driver.findElement(By.css('.el-tabs__nav #tab-2'));
   await common.click();
@@ -56,7 +62,7 @@ async function inputPCData(driver: WebDriver, data: IRow) {
     await inputs[9].sendKeys(formatDate(data.close_date));
     await inputs[13].clear();
     await inputs[13].sendKeys(data.spec_code);
-    await common.click();
+    //await common.click();
   }
   //console.log(inputs.length);
 }
@@ -72,12 +78,15 @@ async function savePCScan(driver: WebDriver, pc_path: string) {
   // wait
   //await driver.wait(until.elementLocated(By.css('.el-tabs__nav #tab-3')));
   // common
-
+  await setTimeout(2000); // 2000
   let panels = await driver.findElements(
     By.css('.x-panel-body .x-tabpanel-child')
   );
   if (panels.length > 0) {
     let last_panel = panels[panels.length - 1];
+    // wait
+    await driver.manage().setTimeouts({ implicit: 30000 });
+    //await driver.wait(until.elementLocated(By.css('.el-tabs__nav #tab-3')));
     // click
     let scan = await last_panel.findElement(By.css('.el-tabs__nav #tab-3'));
     await scan.click();
@@ -124,7 +133,7 @@ async function savePCScan(driver: WebDriver, pc_path: string) {
       );
       // save pc
       await saveCard(driver);
-      await setTimeout(10000);
+      await setTimeout(8000); //8000
       // wait for load mask disappear
       await driver.wait(
         until.elementIsNotVisible(
@@ -139,6 +148,104 @@ async function savePCScan(driver: WebDriver, pc_path: string) {
       await doc_tab.click();
     }
   }
+}
+
+// go to the list of documents
+async function goToDocTab(driver: WebDriver) {
+  // wait for load
+  await driver.wait(until.elementLocated(By.css('.el-tabs__nav #tab-4')));
+  let panels = await driver.findElements(
+    By.css('.x-panel-body .x-tabpanel-child')
+  );
+  if (panels.length > 0) {
+    let last_panel = panels[panels.length - 1];
+    // go to doc tab
+    let doc_tab = await last_panel.findElement(By.css('.el-tabs__nav #tab-4'));
+    await doc_tab.click();
+  }
+}
+
+// delete body of the document before loading new doc_file
+async function deleteDocAttachment(driver: WebDriver) {
+  await setTimeout(2000);
+  let panels = await driver.findElements(
+    By.css('.x-panel-body .x-tabpanel-child')
+  );
+  if (panels.length > 0) {
+    let last_panel = panels[panels.length - 1];
+    // go to doc tab
+    let buttons = await last_panel.findElements(
+      By.css('.u-file-container__toolbar button')
+    );
+    console.log('Button ', buttons.length);
+    if (buttons.length > 5) {
+      //await buttons[3].click();
+      await driver.actions().click(buttons[4]).perform();
+      // wait untill dialog loaded
+      /* await driver.wait(
+        until.elementLocated(By.css("dialog.u-modal[open='true']"))
+      ); */
+      await setTimeout(2000);
+      let dialogs = await driver.findElements(By.css('dialog.u-modal'));
+      if (dialogs.length > 0) {
+        let dialog = dialogs[dialogs.length - 1];
+        let dialog_buttons = await dialog.findElements(By.css('button'));
+        console.log(dialog_buttons.length);
+        if (dialog_buttons.length > 1) {
+          await dialog_buttons[1].click();
+          await setTimeout(2000);
+        }
+      }
+    }
+  }
+}
+
+export async function openExistDocument(
+  driver: WebDriver,
+  doc_keyword: string
+) {
+  await setTimeout(3000);
+  // wait for view doc list
+  await driver.wait(until.elementLocated(By.css('.el-tabs__nav #tab-4')));
+  // wait for load mask disappear
+  await driver.wait(
+    until.elementIsNotVisible(
+      await driver.findElement(By.css('.u-form-row__content .el-loading-mask'))
+    )
+  );
+
+  let panels = await driver.findElements(
+    By.css('.x-panel-body .x-tabpanel-child')
+  );
+  if (panels.length > 0) {
+    let last_panel = panels[panels.length - 1];
+    // all docs
+    let doc_rows = await last_panel.findElements(
+      By.css('.u-table-entity__body table tr')
+    );
+    console.log('Docs ', doc_rows.length);
+
+    // loop over docs
+    for (let i = 1; i < doc_rows.length; i++) {
+      let row = doc_rows[i];
+      let columns = await row.findElements(By.css('td'));
+      //console.log('td ', columns.length);
+      if (columns.length > 8) {
+        let doc_name = await columns[2].getText();
+        //console.log('text ', pc_col);
+        if (
+          doc_name
+            .toLowerCase()
+            .includes(keyword_to_program_names[doc_keyword].toLowerCase())
+        ) {
+          // open
+          await columns[7].findElement(By.css('button')).click();
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 export async function createDocument(driver: WebDriver) {
@@ -193,7 +300,7 @@ export async function saveAndClose(
     );
   }
 
-  await setTimeout(5000);
+  await setTimeout(4000);
   let panels = await driver.findElements(By.css('.x-tabpanel-child'));
   if (panels.length > 0) {
     let last_panel = panels[panels.length - 1];
@@ -265,20 +372,59 @@ export async function setDocType(
     }
   }
 }
-
+const keyword_to_program_names = {
+  понов: 'Заява про надання (поновлення) статусу',
+  'виплати доп': 'Заява про призначення (поновлення) виплати',
+};
+// doctypes to file names
 const keyword_to_names = {
   pc: ['ПК.pdf', 'картка', 'reportCard'],
   понов: ['статус', 'Status', 'СБ'],
   'виплати доп': ['ДБ', 'виплата', 'DB'],
   план: ['план', 'Plan', 'іпп.rtf'],
-  'додаток 1': ['додаток1', 'додаток 1', 'відвідув', 'AddV4_01', 'AddV3_01'], //'1.pdf',
-  'додаток 2': ['додаток2', 'додаток 2', 'рішення', 'PcPrintAdd2'], //'2.pdf'
-  'додаток 3': ['додаток3', 'додаток 3', 'періоди', 'AddV4_03'], //'3.rtf'
-  'додаток 4': ['додаток4', 'додаток 4', 'нарахування', 'Add_04_v4'], //'4.pdf'
-  'додаток 5': ['додаток5', 'додаток 5', 'зміни', 'AddV4_05'], //'5.pdf'
+  'додаток 1': [
+    'додаток1',
+    'додаток 1',
+    'відвідув',
+    'AddV4_01',
+    'AddV3_01',
+    'дод1',
+  ], //'1.pdf',
+  'додаток 2': [
+    'додаток2',
+    'додаток 2',
+    'рішення',
+    'PcPrintAdd2',
+    'Add_02_Decision',
+    'дод2',
+  ], //'2.pdf'
+  'додаток 3': [
+    'додаток3',
+    'додаток 3',
+    'періоди',
+    'AddV4_03',
+    'AddV5_03',
+    'дод3',
+  ], //'3.rtf'
+  'додаток 4': [
+    'додаток4',
+    'додаток 4',
+    'нарахування',
+    'Add_04_v4',
+    'Add_04_v5',
+    'дод4',
+  ], //'4.pdf'
+  'додаток 5': [
+    'додаток5',
+    'додаток 5',
+    'зміни',
+    'AddV4_05',
+    'AddV5_05',
+    'дод5',
+  ], //'5.pdf'
   поважн: ['поваж'],
   висновок: ['акт'],
-  ато: ['участь ато'],
+  ато: ['участь ато', 'учасника АТО'],
   військово: ['військовий'],
   договір: ['договір', 'ProfLearn'],
   направленн: ['направлення на навчання'],
@@ -287,13 +433,16 @@ const keyword_to_names = {
   реабіл: ['реабіл'],
   громадс: ['громад'],
   непраце: ['непрацезд'],
-  лікарсь: ['лікарсь'],
-  реєстрації: ['відмов', 'StatementUnreg'],
+  лікарсь: ['лікарсь', 'лкк'],
+  реєстрації: ['відмов', 'StatementUnreg', 'прип реєстр'],
   пенс: ['пенсію'],
   соц: ['соціальн'],
-  досяг: ['дитиною'],
-  полог: ['полог'],
-  виписка: ['працевлаш'],
+  досяг: ['дитиною', 'StatementUnrer'],
+  полог: ['полог', 'довідка 147'],
+  виписка: ['працевлаш', 'наказу ПОУ'],
+  вагіт: ['вагітність'],
+  вини: ['вина особи'],
+  наказ: ['витяг з наказу'],
 };
 
 const keyword_to_position = {
@@ -324,6 +473,9 @@ const keyword_to_position = {
   досяг: 1,
   полог: 0, //25
   виписка: 0,
+  вагіт: 1,
+  вини: 0,
+  наказ: 1,
 };
 class Document {
   path: string = '';
@@ -340,6 +492,14 @@ class Document {
 
   file_path() {
     return `${this.path}\\${this.file_name}`;
+  }
+
+  delete_file() {
+    try {
+      unlinkSync(this.file_path());
+    } catch (err) {
+      console.log(err);
+    }
   }
 
   isImage() {
@@ -378,13 +538,19 @@ export class Documents {
   docs: Document[] = [];
   files_path: string = '';
   driver: WebDriver;
-  constructor(driver: WebDriver, files_path: string) {
+  mode: string;
+  constructor(driver: WebDriver, files_path: string, mode: string = 'add') {
     this.driver = driver;
     this.files_path = files_path;
+    this.mode = mode;
     this.getFileNames();
     this.addDocs();
     this.print();
     //this.process();
+  }
+
+  docsCount() {
+    return this.docs.length;
   }
 
   getFileNames() {
@@ -444,18 +610,38 @@ export class Documents {
         console.log(
           `Внесення документа ${doc.file_name}  як ${doc.doc_keyword} `
         );
-        // create new doc
-        await createDocument(this.driver);
-        // attach file
-        await addFile(this.driver, doc.file_path());
-        // set doc type
-        await setDocType(
-          this.driver,
-          doc.doc_keyword,
-          keyword_to_position[doc.doc_keyword]
-        );
-        // save and close doc
-        await saveAndClose(this.driver, doc.isImage());
+        // add doc
+        if (this.mode == 'add') {
+          // create new doc
+          await createDocument(this.driver);
+          // attach file
+          await addFile(this.driver, doc.file_path());
+          // set doc type
+          await setDocType(
+            this.driver,
+            doc.doc_keyword,
+            keyword_to_position[doc.doc_keyword]
+          );
+          // save and close doc
+          await saveAndClose(this.driver, doc.isImage());
+        } else {
+          // change doc
+          // go to the documents
+          await goToDocTab(this.driver);
+          // try to open
+          let is_open = await openExistDocument(this.driver, doc.doc_keyword);
+          if (is_open) {
+            // delete image of document
+            await deleteDocAttachment(this.driver);
+            // attach new file
+            await addFile(this.driver, doc.file_path());
+            // save and close doc
+            await saveAndClose(this.driver, doc.isImage());
+            // delete file from disk
+            doc.delete_file();
+            await setTimeout(3000);
+          }
+        }
       }
       // for save pc scan
       if (doc && doc.doc_keyword == 'pc') {

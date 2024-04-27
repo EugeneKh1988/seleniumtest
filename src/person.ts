@@ -167,6 +167,12 @@ async function savePersonCard(driver: WebDriver) {
 
 export async function goToLinks(driver: WebDriver) {
   //pc links
+  // wait for load mask disappear
+  await driver.wait(
+    until.elementIsNotVisible(
+      await driver.findElement(By.css('.el-loading-mask'))
+    )
+  );
   let pc_links = await driver.findElement(By.css('.el-tabs__nav #tab-20'));
   await pc_links.click();
 }

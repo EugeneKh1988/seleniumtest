@@ -5,6 +5,7 @@ import { xslxData, IRow } from './src/excel';
 import promptSync from 'prompt-sync';
 import { goToLinks, savePerson } from './src/person';
 import { Documents, savePCData, setDocType } from './src/pc';
+import { setTimeout } from 'timers/promises';
 import { readdirSync } from 'fs';
 import {
   closePanels,
@@ -19,7 +20,7 @@ const prompt = promptSync();
 async function start() {
   const options = new Chrome.Options();
   let driver = await new Builder()
-    .setChromeOptions(options.debuggerAddress('localhost:50364'))
+    .setChromeOptions(options.debuggerAddress('localhost:57500'))
     .forBrowser(Browser.CHROME)
     .build();
   try {
@@ -37,11 +38,12 @@ async function start() {
     //let docs = new Documents(driver, 'C:\\chrome\\docs');
     //await docs.auto_process();
 
-    //await personCard(driver, { navigate: true, create: false });
+    await personCard(driver, { navigate: true, create: false });
     await addDocuments(driver, {
       path: 'C:\\chrome\\docs',
       onePerson: false,
       navigate: true,
+      mode: 'change',
     });
 
     //await goToPersonList(driver);
@@ -124,18 +126,19 @@ async function addDocuments(
     path,
     onePerson,
     navigate,
-  }: { path: string; onePerson: boolean; navigate: boolean }
+    mode,
+  }: { path: string; onePerson: boolean; navigate: boolean; mode: string }
 ) {
   // for one person without navigation
   // pc card must be open
   if (onePerson && !navigate) {
-    let docs = new Documents(driver, path);
+    let docs = new Documents(driver, path, mode);
     await docs.auto_process();
   }
   // for one person with navigation
   // person list must be open with selected id column
   if (onePerson && navigate) {
-    await documentsForOnePerson(driver, path);
+    await documentsForOnePerson(driver, path, mode);
   }
 
   // for many person with navigation
@@ -153,11 +156,12 @@ async function addDocuments(
       await closePanels(driver);
 
       let dir = dirs[i];
-      await documentsForOnePerson(driver, `${path}\\${dir}`);
-      let cont = prompt(`Продовжувати? `);
+      await documentsForOnePerson(driver, `${path}\\${dir}`, mode);
+      /* let cont = prompt(`Продовжувати? `);
       if (cont.trim() != 'y') {
         break;
-      }
+      } */
+      await setTimeout(5000); // 5000
     }
     /* let cont = '';
     while (true) {
@@ -170,10 +174,18 @@ async function addDocuments(
   }
 }
 
-async function documentsForOnePerson(driver: WebDriver, path: string) {
+async function documentsForOnePerson(
+  driver: WebDriver,
+  path: string,
+  mode: string = 'add'
+) {
   // rows from xlx
   let rows: IRow[] = (await xslxData('2022.xlsx')).rows as IRow[];
-  let docs = new Documents(driver, path);
+  let docs = new Documents(driver, path, mode);
+  // return if there are no documents
+  if (docs.docsCount() == 0) {
+    return false;
+  }
   // get pc_num
   let pc_num = '';
   if (docs.get_num_pc()) {

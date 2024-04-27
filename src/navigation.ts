@@ -67,7 +67,7 @@ export async function findPersonByCode(driver: WebDriver, idCode: string) {
 
 // open first person card from filtered list
 export async function openPersonCard(driver: WebDriver) {
-  await setTimeout(5000);
+  await setTimeout(5000); // 5000
   let panels = await driver.findElements(
     By.css('.x-panel-body .x-tabpanel-child')
   );
@@ -79,7 +79,7 @@ export async function openPersonCard(driver: WebDriver) {
     );
     //console.log(rows.length);
     // open card
-    if (rows.length == 2) {
+    if (rows.length >= 2) {
       let card_row = rows[1];
       let selected_column = null;
       let columns = [];
