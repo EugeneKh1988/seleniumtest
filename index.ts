@@ -20,7 +20,7 @@ const prompt = promptSync();
 async function start() {
   const options = new Chrome.Options();
   let driver = await new Builder()
-    .setChromeOptions(options.debuggerAddress('localhost:57500'))
+    .setChromeOptions(options.debuggerAddress('localhost:62551'))
     .forBrowser(Browser.CHROME)
     .build();
   try {
@@ -43,7 +43,7 @@ async function start() {
       path: 'C:\\chrome\\docs',
       onePerson: false,
       navigate: true,
-      mode: 'change',
+      mode: 'add',
     });
 
     //await goToPersonList(driver);
@@ -60,7 +60,7 @@ async function personCard(
   { navigate, create }: { navigate: boolean; create: boolean }
 ) {
   if (navigate) {
-    let rows: IRow[] = (await xslxData('2022.xlsx')).rows as IRow[];
+    let rows: IRow[] = (await xslxData('2021.xlsx')).rows as IRow[];
     var pc_num = '';
     while (true) {
       pc_num = prompt(`Input pc_num `);
@@ -180,7 +180,7 @@ async function documentsForOnePerson(
   mode: string = 'add'
 ) {
   // rows from xlx
-  let rows: IRow[] = (await xslxData('2022.xlsx')).rows as IRow[];
+  let rows: IRow[] = (await xslxData('2021.xlsx')).rows as IRow[];
   let docs = new Documents(driver, path, mode);
   // return if there are no documents
   if (docs.docsCount() == 0) {

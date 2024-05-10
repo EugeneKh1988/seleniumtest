@@ -167,7 +167,7 @@ async function goToDocTab(driver: WebDriver) {
 
 // delete body of the document before loading new doc_file
 async function deleteDocAttachment(driver: WebDriver) {
-  await setTimeout(2000);
+  await setTimeout(3000);
   let panels = await driver.findElements(
     By.css('.x-panel-body .x-tabpanel-child')
   );
@@ -238,8 +238,17 @@ export async function openExistDocument(
             .toLowerCase()
             .includes(keyword_to_program_names[doc_keyword].toLowerCase())
         ) {
+          // scroll to row
+          await driver.executeScript('arguments[0].scrollIntoView(false)', row);
+          await setTimeout(3000);
+          await driver.wait(until.elementIsVisible(columns[7]));
           // open
-          await columns[7].findElement(By.css('button')).click();
+          try {
+            await columns[7].findElement(By.css('button')).click();
+          } catch (err) {
+            console.log('Ошибка');
+            await columns[7].findElement(By.css('button')).click();
+          }
           return true;
         }
       }
@@ -431,7 +440,7 @@ const keyword_to_names = {
   бойов: ['убд'],
   медико: ['мсек'],
   реабіл: ['реабіл'],
-  громадс: ['громад'],
+  громадс: ['громад', 'корінець направлення'],
   непраце: ['непрацезд'],
   лікарсь: ['лікарсь', 'лкк'],
   реєстрації: ['відмов', 'StatementUnreg', 'прип реєстр'],
@@ -443,6 +452,8 @@ const keyword_to_names = {
   вагіт: ['вагітність'],
   вини: ['вина особи'],
   наказ: ['витяг з наказу'],
+  бажання: ['переведення'],
+  єдр: ['підприємницька'],
 };
 
 const keyword_to_position = {
@@ -476,6 +487,8 @@ const keyword_to_position = {
   вагіт: 1,
   вини: 0,
   наказ: 1,
+  бажання: 1, //30
+  єдр: 0,
 };
 class Document {
   path: string = '';
@@ -570,21 +583,22 @@ export class Documents {
     }
   }
 
+  // get docs by keyword
   find(keyword: string) {
     let filter = this.docs.filter((doc) => doc.doc_keyword === keyword);
-    if (filter && filter.length > 0) {
+    /* if (filter && filter.length > 0) {
       return filter[0];
-    }
-    return null;
+    } */
+    return filter;
   }
 
   print() {
     let keywords = Object.keys(keyword_to_names);
     keywords.forEach((keyword) => {
-      let doc = this.find(keyword);
-      if (doc) {
-        console.log(`${doc.file_name} як ${doc.doc_keyword}`);
-      }
+      let docs = this.find(keyword);
+      docs.forEach((doc) =>
+        console.log(`${doc.file_name} як ${doc.doc_keyword}`)
+      );
     });
     //this.docs.forEach(doc => {console.log(doc.doc_keyword)});
   }
@@ -605,47 +619,52 @@ export class Documents {
     let keywords = Object.keys(keyword_to_names);
     for (let i = 0; i < keywords.length; i++) {
       let keyword = keywords[i];
-      let doc = this.find(keyword);
-      if (doc && doc.doc_keyword != 'pc') {
-        console.log(
-          `Внесення документа ${doc.file_name}  як ${doc.doc_keyword} `
-        );
-        // add doc
-        if (this.mode == 'add') {
-          // create new doc
-          await createDocument(this.driver);
-          // attach file
-          await addFile(this.driver, doc.file_path());
-          // set doc type
-          await setDocType(
-            this.driver,
-            doc.doc_keyword,
-            keyword_to_position[doc.doc_keyword]
+      // get documents by some keyword
+      let docs = this.find(keyword);
+      // loop through docs with same type
+      for (let j = 0; j < docs.length; j++) {
+        let doc = docs[j];
+        if (doc && doc.doc_keyword != 'pc') {
+          console.log(
+            `Внесення документа ${doc.file_name}  як ${doc.doc_keyword} `
           );
-          // save and close doc
-          await saveAndClose(this.driver, doc.isImage());
-        } else {
-          // change doc
-          // go to the documents
-          await goToDocTab(this.driver);
-          // try to open
-          let is_open = await openExistDocument(this.driver, doc.doc_keyword);
-          if (is_open) {
-            // delete image of document
-            await deleteDocAttachment(this.driver);
-            // attach new file
+          // add doc
+          if (this.mode == 'add') {
+            // create new doc
+            await createDocument(this.driver);
+            // attach file
             await addFile(this.driver, doc.file_path());
+            // set doc type
+            await setDocType(
+              this.driver,
+              doc.doc_keyword,
+              keyword_to_position[doc.doc_keyword]
+            );
             // save and close doc
             await saveAndClose(this.driver, doc.isImage());
-            // delete file from disk
-            doc.delete_file();
-            await setTimeout(3000);
+          } else {
+            // change doc
+            // go to the documents
+            await goToDocTab(this.driver);
+            // try to open
+            let is_open = await openExistDocument(this.driver, doc.doc_keyword);
+            if (is_open) {
+              // delete image of document
+              await deleteDocAttachment(this.driver);
+              // attach new file
+              await addFile(this.driver, doc.file_path());
+              // save and close doc
+              await saveAndClose(this.driver, doc.isImage());
+              // delete file from disk
+              doc.delete_file();
+              await setTimeout(3000);
+            }
           }
         }
-      }
-      // for save pc scan
-      if (doc && doc.doc_keyword == 'pc') {
-        await savePCScan(this.driver, doc.file_path());
+        // for save pc scan
+        if (doc && doc.doc_keyword == 'pc') {
+          await savePCScan(this.driver, doc.file_path());
+        }
       }
     }
     //keywords.forEach((keyword) => {});
@@ -687,53 +706,56 @@ export class Documents {
     let keywords = Object.keys(keyword_to_names);
     for (let i = 0; i < keywords.length; i++) {
       let keyword = keywords[i];
-      let doc = this.find(keyword);
-      if (doc && doc.doc_keyword != 'pc') {
-        let resDoc: string = prompt(
-          `Внести документ ${doc.file_name}  як ${doc.doc_keyword} `
-        );
-        if (resDoc.trim() == 'y') {
-          // create new doc
-          await createDocument(this.driver);
-          // attach file
-          await addFile(this.driver, doc.file_path());
-          // set doc type
-          await setDocType(
-            this.driver,
-            doc.doc_keyword,
-            keyword_to_position[doc.doc_keyword]
+      let docs = this.find(keyword);
+      for (let j = 0; j < docs.length; j++) {
+        let doc = docs[j];
+        if (doc && doc.doc_keyword != 'pc') {
+          let resDoc: string = prompt(
+            `Внести документ ${doc.file_name}  як ${doc.doc_keyword} `
           );
-          // save and close doc
-          await saveAndClose(this.driver, doc.isImage());
-        }
-        let keyword_index = parseInt(resDoc.trim());
-        if (keyword_index && keyword_index != 0) {
-          let new_doc_keyword = '';
-          if (keywords.length >= keyword_index + 1) {
-            new_doc_keyword = keywords[keyword_index];
-            console.log(
-              `Новий ключ для документа ${doc.file_name} ${new_doc_keyword}`
-            );
+          if (resDoc.trim() == 'y') {
             // create new doc
             await createDocument(this.driver);
+            // attach file
             await addFile(this.driver, doc.file_path());
+            // set doc type
             await setDocType(
               this.driver,
-              new_doc_keyword,
-              keyword_to_position[new_doc_keyword]
+              doc.doc_keyword,
+              keyword_to_position[doc.doc_keyword]
             );
             // save and close doc
             await saveAndClose(this.driver, doc.isImage());
           }
+          let keyword_index = parseInt(resDoc.trim());
+          if (keyword_index && keyword_index != 0) {
+            let new_doc_keyword = '';
+            if (keywords.length >= keyword_index + 1) {
+              new_doc_keyword = keywords[keyword_index];
+              console.log(
+                `Новий ключ для документа ${doc.file_name} ${new_doc_keyword}`
+              );
+              // create new doc
+              await createDocument(this.driver);
+              await addFile(this.driver, doc.file_path());
+              await setDocType(
+                this.driver,
+                new_doc_keyword,
+                keyword_to_position[new_doc_keyword]
+              );
+              // save and close doc
+              await saveAndClose(this.driver, doc.isImage());
+            }
+          }
+          if (keyword_index === 0) {
+            // for save pc scan
+            await savePCScan(this.driver, doc.file_path());
+          }
         }
-        if (keyword_index === 0) {
-          // for save pc scan
-          await savePCScan(this.driver, doc.file_path());
+        // for save pc scan
+        if (doc && doc.doc_keyword == 'pc') {
+          //await savePCScan(this.driver, doc.file_path());
         }
-      }
-      // for save pc scan
-      if (doc && doc.doc_keyword == 'pc') {
-        //await savePCScan(this.driver, doc.file_path());
       }
     }
     //keywords.forEach((keyword) => {});
